@@ -1,0 +1,111 @@
+CHROOTING:
+
+The root partition of the Linux system that you are trying to chroot into needs to be
+mounted first. To find out the device name assigned by the kernel, run:
+# lsblk
+
+Then create a directory for mounting the root partition to, and mount it:
+# mkdir /mnt/hd
+# mount /dev/sdx1 /mnt/hd
+
+Next, if there are separate filesystems for other system directories (e.g. /boot,
+/home...) mount them too:
+
+# mount /dev/sdx2 /mnt/hd/boot/
+# mount /dev/sdx3 /mnt/hd/home/
+
+Mount the temporary api filesystems:
+
+# cd /mnt/hd
+# mount -t proc proc proc/
+# mount --rbind /sys sys/
+# mount --rbind /dev dev/
+
+And optionally:
+
+# mount --rbind /run run/
+
+To use an internet connection in the chroot environment copy over the DNS details:
+
+# cp /etc/resolv.conf etc/resolv.conf
+
+To change root into a bash shell:
+
+# chroot /mnt/hd /bin/bash
+
+Note: If you see the error:
+
+    chroot: cannot run command '/usr/bin/bash': Exec format error, it is likely
+    that the architectures of the host environment and chroot environment do not match.
+    chroot: '/usr/bin/bash': permission denied, remount with the exec permission:
+    mount -o remount,exec /mnt/hd.
+
+After chrooting it may be necessary to load the local bash configuration:
+
+# source /etc/profile
+# source ~/.bashrc
+
+Optionally, create a unique prompt to be able to differentiate your chroot environment:
+
+# export PS1="(chroot) $PS1"
+
+When you are finished with system maintenance, exit from the chroot:
+
+# exit
+
+Last, unmount the temporary filesystems and the root partition:
+
+# cd /
+# umount --recursive /mnt/hd/
+
+Note: If there is an error mentioning something like: umount: /path: device is busy
+this usually means that either: a program (even a shell) was left running in the
+chroot or that a sub-mount still exists. Quit the program and use mount to find and
+umount sub-mounts). It may be tricky to umount some things and one can hopefully have
+umount --force work.  As a last resort use umount --lazy which just releases them.
+In either case to be safe, reboot as soon as possible if these are unresolved to avoid
+future, possible conflicts.
+
+
+GRUB:
+
+Install to harddisk:
+
+(Note: This method is specific to installing GRUB to a partitioned (MBR or GPT) disk,
+with GRUB files installed to /boot/grub and its first stage code installed to the
+440-byte MBR boot code region of THE DISK, NOT A PARTITION (also not to be confused
+with MBR partition table).
+
+The following commands will:
+
+    Set up GRUB in the 440-byte Master Boot Record boot code region
+    Populate the /boot/grub directory
+    Generate the /boot/grub/i386-pc/core.img file
+    Embed it in the 31 KiB (minimum size - varies depending on partition alignment)
+    post-MBR gap in case of MBR partitioned disk. In the case of a GPT partitioned
+    disk it will embed it in the BIOS Boot Partition , denoted by bios_grub flag
+    in parted and EF02 type code in gdisk.
+
+# grub-install --target=i386-pc /dev/sdx
+# grub-mkconfig -o /boot/grub/grub.cfg
+
+
+Install to external USB stick:
+
+Assume your USB stick's first partition is FAT32 and its partition is /dev/sdy1
+
+# mkdir -p /mnt/usb
+# mount /dev/sdy1 /mnt/usb
+# grub-install --target=i386-pc --debug --boot-directory=/mnt/usb/boot /dev/sdy
+# grub-mkconfig -o /mnt/usb/boot/grub/grub.cfg
+
+Optionally backup configuration files of grub.cfg:
+
+# mkdir -p /mnt/usb/etc/default
+# cp /etc/default/grub /mnt/usb/etc/default
+# cp -a /etc/grub.d /mnt/usb/etc
+
+# sync; umount /mnt/usb
+
+
+
